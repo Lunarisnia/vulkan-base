@@ -23,6 +23,7 @@ target_include_directories(vulkan_base_engine SYSTEM
 
 target_link_libraries(vulkan_base_engine
     PUBLIC
+        SDL3::SDL3
         Vulkan::Vulkan
         vk-bootstrap::vk-bootstrap
         GPUOpen::VulkanMemoryAllocator

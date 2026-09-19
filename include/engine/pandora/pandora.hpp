@@ -1,4 +1,5 @@
 #pragma once
+#include "SDL3/SDL_video.h"
 #include "VkBootstrap.h"
 #include "engine/garbage_collector/garbage_collector.hpp"
 #include "vk_mem_alloc.h"
@@ -7,46 +8,53 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 class Pandora {
-private:
-  GarbageCollector garbageCollector;
-  vkb::Instance instance;
-  vkb::Device device;
-  VkPhysicalDevice choosenPhysicalDevice;
+  private:
+    GarbageCollector garbageCollector;
+    vkb::Instance instance;
+    vkb::Device device;
+    VkPhysicalDevice choosenPhysicalDevice;
 
-  VkQueue graphicsQueue;
-  uint32_t graphicsQueueFamily;
+    SDL_Window* window;
+    VkSurfaceKHR surface;
+    VkSwapchainKHR swapchain;
+    std::vector<VkImage> swapchainImages;
+    std::vector<VkImageView> swapchainImageViews;
 
-  VmaAllocator allocator;
+    VkQueue graphicsQueue;
+    uint32_t graphicsQueueFamily;
 
-  VkDescriptorPool descriptorPool;
-  VkDescriptorSetLayout descriptorSetLayout;
-  VkDescriptorSet descriptorSet;
+    VmaAllocator allocator;
 
-  VkPipelineLayout calculationPipelineLayout;
-  VkPipeline calculationPipeline;
+    VkDescriptorPool descriptorPool;
+    VkDescriptorSetLayout descriptorSetLayout;
+    VkDescriptorSet descriptorSet;
 
-  VkCommandPool commandPool;
-  VkCommandBuffer commandBuffer;
+    VkPipelineLayout calculationPipelineLayout;
+    VkPipeline calculationPipeline;
 
-  unsigned long bufferSize;
-  VkBuffer storageBuffers[3];
-  VmaAllocation storageAllocations[3];
+    VkCommandPool commandPool;
+    VkCommandBuffer commandBuffer;
 
-  int b;
+    unsigned long bufferSize;
+    VkBuffer storageBuffers[3];
+    VmaAllocation storageAllocations[3];
 
-private:
-  void initInstance(bool headless);
-  void initDescriptor();
-  void initBuffers();
-  void initPipeline(const std::string &shaderPath);
-  void initCommands();
+    int b;
 
-public:
-  void Init();
-  void InitHeadless(unsigned long bufferSize, const std::string &shaderPath);
-  void Upload(std::vector<int> a, int b, std::vector<int> c);
-  std::vector<int> Download();
-  void Dispatch(uint32_t x, uint32_t y, uint32_t z);
+  private:
+    void initInstance(bool headless);
+    void initSwapchain();
+    void initDescriptor();
+    void initBuffers();
+    void initPipeline(const std::string& shaderPath);
+    void initCommands();
 
-  void Cleanup();
+  public:
+    void Init();
+    void InitHeadless(unsigned long bufferSize, const std::string& shaderPath);
+    void Upload(std::vector<int> a, int b, std::vector<int> c);
+    std::vector<int> Download();
+    void Dispatch(uint32_t x, uint32_t y, uint32_t z);
+
+    void Cleanup();
 };

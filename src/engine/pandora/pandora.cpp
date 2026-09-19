@@ -1,4 +1,7 @@
 #include "engine/pandora/pandora.hpp"
+#include "SDL3/SDL_init.h"
+#include "SDL3/SDL_video.h"
+#include "SDL3/SDL_vulkan.h"
 #include "VkBootstrap.h"
 #include "engine/file_loader.hpp"
 #include "engine/vk_toolkit/vk_toolkit.hpp"
@@ -9,7 +12,41 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-void Pandora::Init() {}
+void Pandora::Init() {
+    // Create a surface for vulkan to draw on
+    SDL_Init(SDL_INIT_VIDEO);
+    window = SDL_CreateWindow("Vulkan Window", 800, 600, SDL_WINDOW_VULKAN);
+    garbageCollector.AddFunction([&]() { SDL_DestroyWindow(window); });
+
+    initInstance(false);
+    initSwapchain();
+}
+
+void Pandora::initSwapchain() {
+    vkb::SwapchainBuilder builder{device, surface};
+    auto swapchainRet =
+        builder.set_desired_format({VK_FORMAT_R8G8B8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR})
+            .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+            .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+            .set_desired_extent(800, 600)
+            .build();
+
+    if (!swapchainRet) {
+        fmt::println("{}", swapchainRet.error().message());
+        throw swapchainRet.error();
+    }
+
+    swapchainRet = swapchainRet.value();
+    swapchain = swapchainRet->swapchain;
+    swapchainImages = swapchainRet->get_images().value();
+    swapchainImageViews = swapchainRet->get_image_views().value();
+    garbageCollector.AddFunction([&]() {
+        vkDestroySwapchainKHR(device, swapchain, nullptr);
+        for (size_t i = 0; i < swapchainImageViews.size(); i++) {
+            vkDestroyImageView(device, swapchainImageViews[i], nullptr);
+        }
+    });
+}
 
 void Pandora::InitHeadless(unsigned long bufferSize, const std::string& shaderPath) {
     this->bufferSize = bufferSize;
@@ -78,6 +115,10 @@ void Pandora::initInstance(bool headless) {
     }
     instance = instanceRet.value();
 
+    if (!headless) {
+        SDL_Vulkan_CreateSurface(window, instance, nullptr, &surface);
+    }
+
     // vulkan 1.3 features
     VkPhysicalDeviceVulkan13Features features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
@@ -91,11 +132,13 @@ void Pandora::initInstance(bool headless) {
     features12.descriptorIndexing = true;
 
     vkb::PhysicalDeviceSelector selector{instance};
-    vkb::PhysicalDevice physicalDevice = selector.set_minimum_version(1, 3)
-                                             .set_required_features_13(features)
-                                             .set_required_features_12(features12)
-                                             .select()
-                                             .value();
+    selector = selector.set_minimum_version(1, 3)
+                   .set_required_features_13(features)
+                   .set_required_features_12(features12);
+    if (!headless) {
+        selector.set_surface(surface);
+    }
+    vkb::PhysicalDevice physicalDevice = selector.select().value();
 
     vkb::DeviceBuilder deviceBuilder{physicalDevice};
     auto deviceBuilderRet = deviceBuilder.build();
