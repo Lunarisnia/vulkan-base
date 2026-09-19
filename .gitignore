@@ -6,7 +6,7 @@
 .cache/
 .idea/
 .vscode/
-.zed/*
+.zed/
 !.zed/tasks.json
 compile_commands.json
 
