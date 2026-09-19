@@ -3,7 +3,7 @@ add_library(vulkan_base_engine
     engine/vma_usage.cpp
     engine/garbage_collector/garbage_collector.cpp
     engine/vk_toolkit/vk_toolkit.cpp
-    engine/shaders/file_loader.cpp
+    engine/file_loader.cpp
 )
 
 add_library(vulkan_base::engine ALIAS vulkan_base_engine)

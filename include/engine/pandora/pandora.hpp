@@ -35,14 +35,15 @@ private:
   int b;
 
 private:
-  void initInstance();
+  void initInstance(bool headless);
   void initDescriptor();
   void initBuffers();
   void initPipeline(const std::string &shaderPath);
   void initCommands();
 
 public:
-  void Init(unsigned long bufferSize, const std::string &shaderPath);
+  void Init();
+  void InitHeadless(unsigned long bufferSize, const std::string &shaderPath);
   void Upload(std::vector<int> a, int b, std::vector<int> c);
   std::vector<int> Download();
   void Dispatch(uint32_t x, uint32_t y, uint32_t z);

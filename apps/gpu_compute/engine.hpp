@@ -3,11 +3,11 @@
 #include "engine/pandora/pandora.hpp"
 
 class Engine {
-private:
-  Pandora pandora;
+  private:
+    Pandora pandora;
 
-public:
-  void Init();
-  void Run();
-  ~Engine();
+  public:
+    void Init();
+    void Run();
+    ~Engine();
 };
