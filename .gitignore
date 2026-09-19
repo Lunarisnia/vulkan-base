@@ -1,0 +1,14 @@
+# Build trees
+/build/
+/build-*/
+
+# IDE/editor files
+.cache/
+.idea/
+.vscode/
+.zed/*
+!.zed/tasks.json
+compile_commands.json
+
+# Platform files
+.DS_Store
