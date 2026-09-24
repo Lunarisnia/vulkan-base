@@ -23,6 +23,9 @@ class Pandora {
     VkQueue graphicsQueue;
     uint32_t graphicsQueueFamily;
 
+    VkQueue presentQueue;
+    uint32_t presentQueueFamily;
+
     VmaAllocator allocator;
 
     VkDescriptorPool descriptorPool;

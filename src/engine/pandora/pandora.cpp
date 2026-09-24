@@ -149,6 +149,9 @@ void Pandora::initInstance(bool headless) {
     graphicsQueue = device.get_queue(vkb::QueueType::graphics).value();
     graphicsQueueFamily = device.get_queue_index(vkb::QueueType::graphics).value();
 
+    presentQueue = device.get_queue(vkb::QueueType::present).value();
+    presentQueueFamily = device.get_queue_index(vkb::QueueType::present).value();
+
     VmaAllocatorCreateInfo allocatorInfo = {};
     allocatorInfo.physicalDevice = choosenPhysicalDevice;
     allocatorInfo.device = device;
