@@ -3,5 +3,6 @@
 int main() {
     Pandora pandora;
     pandora.Init();
+    pandora.Run();
     pandora.Cleanup();
 }

@@ -1,4 +1,5 @@
 #include "engine/pandora/pandora.hpp"
+#include "SDL3/SDL_events.h"
 #include "SDL3/SDL_init.h"
 #include "SDL3/SDL_video.h"
 #include "SDL3/SDL_vulkan.h"
@@ -23,6 +24,44 @@ void Pandora::Init() {
     initSwapchain();
     initCommands();
     initSync();
+}
+
+void Pandora::Run() {
+    bool running = true;
+    while (running) {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+                running = false;
+            }
+        }
+        draw();
+    }
+}
+
+void Pandora::draw() {
+    FrameData& frame = frames[frameIndex];
+
+    vkWaitForFences(device, 1, &frame.renderFence, VK_TRUE, UINT64_MAX);
+
+    uint32_t imageIndex;
+    const VkResult acquireResult = vkAcquireNextImageKHR(
+        device, swapchain, UINT64_MAX, frame.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+    if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
+        return;
+    }
+    if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
+        throw std::runtime_error("Failed to acquire swapchain image");
+    }
+
+    vkResetFences(device, 1, &frame.renderFence);
+
+    if (vkResetCommandPool(device, frame.mainCommandPool, 0) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to reset command pool");
+    }
+
+    frameIndex = (frameIndex + 1) % frames.size();
 }
 
 void Pandora::initSwapchain() {

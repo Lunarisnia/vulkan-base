@@ -47,6 +47,7 @@ class Pandora {
     VkCommandPool commandPool;
     VkCommandBuffer commandBuffer;
 
+    int frameIndex = 0;
     std::array<FrameData, 2> frames;
 
     unsigned long bufferSize;
@@ -64,8 +65,11 @@ class Pandora {
     void initCommands();
     void initSync();
 
+    void draw();
+
   public:
     void Init();
+    void Run();
     void InitHeadless(unsigned long bufferSize, const std::string& shaderPath);
     void Upload(std::vector<int> a, int b, std::vector<int> c);
     std::vector<int> Download();
