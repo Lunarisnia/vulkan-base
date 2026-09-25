@@ -9,6 +9,7 @@
 #include "vk_mem_alloc.h"
 #include <cstddef>
 #include <cstdint>
+#include <stdexcept>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -20,6 +21,8 @@ void Pandora::Init() {
 
     initInstance(false);
     initSwapchain();
+    initCommands();
+    initSync();
 }
 
 void Pandora::initSwapchain() {
@@ -41,10 +44,10 @@ void Pandora::initSwapchain() {
     swapchainImages = swapchainRet->get_images().value();
     swapchainImageViews = swapchainRet->get_image_views().value();
     garbageCollector.AddFunction([&]() {
-        vkDestroySwapchainKHR(device, swapchain, nullptr);
         for (size_t i = 0; i < swapchainImageViews.size(); i++) {
             vkDestroyImageView(device, swapchainImageViews[i], nullptr);
         }
+        vkDestroySwapchainKHR(device, swapchain, nullptr);
     });
 }
 
@@ -95,6 +98,7 @@ void Pandora::Dispatch(uint32_t x, uint32_t y, uint32_t z) {
 }
 
 void Pandora::Cleanup() {
+    vkDeviceWaitIdle(device);
     garbageCollector.Flush();
 }
 
@@ -240,12 +244,75 @@ void Pandora::initPipeline(const std::string& shaderPath) {
 void Pandora::initCommands() {
     auto commandPoolInfo = VKToolkit::CommandPoolCreateInfo(
         graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-    vkCreateCommandPool(device, &commandPoolInfo, nullptr, &commandPool);
+    if (vkCreateCommandPool(device, &commandPoolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create compatibility command pool");
+    }
 
     auto commandBufferAllocateInfo = VKToolkit::CommandBufferAllocateInfo(commandPool);
-    vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &commandBuffer);
+    if (vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &commandBuffer) !=
+        VK_SUCCESS) {
+        vkDestroyCommandPool(device, commandPool, nullptr);
+        throw std::runtime_error("Failed to allocate compatibility command buffer");
+    }
+    const VkCommandPool compatibilityPool = commandPool;
+    garbageCollector.AddFunction(
+        [this, compatibilityPool]() { vkDestroyCommandPool(device, compatibilityPool, nullptr); });
 
-    garbageCollector.AddFunction([&]() { vkDestroyCommandPool(device, commandPool, nullptr); });
+    for (auto& frame : frames) {
+        if (vkCreateCommandPool(device, &commandPoolInfo, nullptr, &frame.mainCommandPool) !=
+            VK_SUCCESS) {
+            throw std::runtime_error("Failed to create frame command pool");
+        }
+
+        auto commandBufferAllocateInfo =
+            VKToolkit::CommandBufferAllocateInfo(frame.mainCommandPool);
+        if (vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, &frame.commandBuffer) !=
+            VK_SUCCESS) {
+            vkDestroyCommandPool(device, frame.mainCommandPool, nullptr);
+            throw std::runtime_error("Failed to allocate frame command buffer");
+        }
+
+        const VkCommandPool framePool = frame.mainCommandPool;
+        garbageCollector.AddFunction(
+            [this, framePool]() { vkDestroyCommandPool(device, framePool, nullptr); });
+    }
+}
+
+void Pandora::initSync() {
+    const VkSemaphoreCreateInfo semaphoreInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    };
+    const VkFenceCreateInfo fenceInfo{
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+    };
+
+    for (auto& frame : frames) {
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frame.imageAvailableSemaphore) !=
+            VK_SUCCESS) {
+            throw std::runtime_error("Failed to create image-available semaphore");
+        }
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &frame.renderFinishedSemaphore) !=
+            VK_SUCCESS) {
+            vkDestroySemaphore(device, frame.imageAvailableSemaphore, nullptr);
+            throw std::runtime_error("Failed to create render-finished semaphore");
+        }
+        if (vkCreateFence(device, &fenceInfo, nullptr, &frame.renderFence) != VK_SUCCESS) {
+            vkDestroySemaphore(device, frame.renderFinishedSemaphore, nullptr);
+            vkDestroySemaphore(device, frame.imageAvailableSemaphore, nullptr);
+            throw std::runtime_error("Failed to create render fence");
+        }
+
+        const VkSemaphore imageAvailableSemaphore = frame.imageAvailableSemaphore;
+        const VkSemaphore renderFinishedSemaphore = frame.renderFinishedSemaphore;
+        const VkFence renderFence = frame.renderFence;
+        garbageCollector.AddFunction(
+            [this, imageAvailableSemaphore, renderFinishedSemaphore, renderFence]() {
+                vkDestroyFence(device, renderFence, nullptr);
+                vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
+                vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
+            });
+    }
 }
 
 void Pandora::initBuffers() {

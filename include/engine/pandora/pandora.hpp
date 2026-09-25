@@ -3,11 +3,20 @@
 #include "VkBootstrap.h"
 #include "engine/garbage_collector/garbage_collector.hpp"
 #include "vk_mem_alloc.h"
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 class Pandora {
+    struct FrameData {
+        VkCommandPool mainCommandPool{VK_NULL_HANDLE};
+        VkCommandBuffer commandBuffer{VK_NULL_HANDLE};
+        VkSemaphore imageAvailableSemaphore{VK_NULL_HANDLE};
+        VkSemaphore renderFinishedSemaphore{VK_NULL_HANDLE};
+        VkFence renderFence{VK_NULL_HANDLE};
+    };
+
   private:
     GarbageCollector garbageCollector;
     vkb::Instance instance;
@@ -38,6 +47,8 @@ class Pandora {
     VkCommandPool commandPool;
     VkCommandBuffer commandBuffer;
 
+    std::array<FrameData, 2> frames;
+
     unsigned long bufferSize;
     VkBuffer storageBuffers[3];
     VmaAllocation storageAllocations[3];
@@ -51,6 +62,7 @@ class Pandora {
     void initBuffers();
     void initPipeline(const std::string& shaderPath);
     void initCommands();
+    void initSync();
 
   public:
     void Init();
