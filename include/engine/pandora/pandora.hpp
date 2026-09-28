@@ -54,7 +54,7 @@ class Pandora {
     VkBuffer storageBuffers[3];
     VmaAllocation storageAllocations[3];
 
-    int b;
+    int b{0};
 
   private:
     void initInstance(bool headless);

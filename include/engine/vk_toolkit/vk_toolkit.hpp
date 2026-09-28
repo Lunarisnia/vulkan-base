@@ -35,6 +35,14 @@ class VKToolkit {
                                      VkSemaphoreSubmitInfo* waitSemaphoreInfo);
     static VkCommandBufferSubmitInfo CommandBufferSubmitInfo(VkCommandBuffer commandBuffer);
 
+    static void TransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image,
+                                      VkImageLayout oldLayout, VkImageLayout newLayout,
+                                      VkPipelineStageFlags2 srcStageMask,
+                                      VkAccessFlags2 srcAccessMask,
+                                      VkPipelineStageFlags2 dstStageMask,
+                                      VkAccessFlags2 dstAccessMask,
+                                      VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT);
+
     static VkDescriptorBufferInfo DescriptorBufferInfo(VkBuffer buffer, VkDeviceSize offset,
                                                        VkDeviceSize range);
 

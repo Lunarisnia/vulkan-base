@@ -8,8 +8,10 @@
 #include "engine/vk_toolkit/vk_toolkit.hpp"
 #include "fmt/base.h"
 #include "vk_mem_alloc.h"
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <stdexcept>
 #include <vector>
 #include <vulkan/vulkan_core.h>
@@ -33,6 +35,10 @@ void Pandora::Run() {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
                 running = false;
+            }
+
+            if (event.type == SDL_EVENT_KEY_DOWN) {
+                fmt::println("Hello, WOrld");
             }
         }
         draw();
@@ -61,7 +67,93 @@ void Pandora::draw() {
         throw std::runtime_error("Failed to reset command pool");
     }
 
+    vkResetCommandBuffer(frame.commandBuffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+    VkCommandBufferBeginInfo beginInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .pInheritanceInfo = nullptr,
+    };
+    if (vkBeginCommandBuffer(frame.commandBuffer, &beginInfo) != VK_SUCCESS) {
+        throw std::runtime_error("failed to start command buffer");
+    }
+
+    VKToolkit::TransitionImageLayout(
+        frame.commandBuffer, swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_NONE, VK_ACCESS_2_NONE,
+        VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
+
+    // make a clear-color from frame number. This will flash with a 120 frame period.
+    VkClearColorValue clearValue;
+    float flash = std::abs(std::sin(b / 120.f));
+    clearValue = {{0.0f, 0.0f, flash, 1.0f}};
+
+    VkImageSubresourceRange clearRange{
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+    };
+
+    // clear image
+    vkCmdClearColorImage(frame.commandBuffer, swapchainImages[imageIndex],
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &clearRange);
+
+    VKToolkit::TransitionImageLayout(
+        frame.commandBuffer, swapchainImages[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+        VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_NONE, VK_ACCESS_2_NONE);
+
+    vkEndCommandBuffer(frame.commandBuffer);
+
+    const VkSemaphoreSubmitInfo waitInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = frame.imageAvailableSemaphore,
+        .stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+    };
+    const VkSemaphoreSubmitInfo signalInfo{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = frame.renderFinishedSemaphore,
+        .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+    };
+    const VkCommandBufferSubmitInfo commandInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+        .commandBuffer = frame.commandBuffer,
+    };
+    const VkSubmitInfo2 submitInfo{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .waitSemaphoreInfoCount = 1,
+        .pWaitSemaphoreInfos = &waitInfo,
+        .commandBufferInfoCount = 1,
+        .pCommandBufferInfos = &commandInfo,
+        .signalSemaphoreInfoCount = 1,
+        .pSignalSemaphoreInfos = &signalInfo,
+    };
+
+    if (vkQueueSubmit2(graphicsQueue, 1, &submitInfo, frame.renderFence) != VK_SUCCESS) {
+        throw std::runtime_error("failed to submit command buffer!");
+    }
+
+    const VkPresentInfoKHR presentInfo{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &frame.renderFinishedSemaphore,
+        .swapchainCount = 1,
+        .pSwapchains = &swapchain,
+        .pImageIndices = &imageIndex,
+    };
+    const VkResult presentResult = vkQueuePresentKHR(presentQueue, &presentInfo);
+    if (presentResult != VK_SUCCESS && presentResult != VK_SUBOPTIMAL_KHR &&
+        presentResult != VK_ERROR_OUT_OF_DATE_KHR) {
+        throw std::runtime_error("failed to present swapchain image!");
+    }
+    // TODO: Fix something about this error Swapchain image 1 was presented but was not re-acquired,
+    // so VkSemaphore 0x110000000011 may still be in use and cannot be safely reused with image
+    // index 2.
+
     frameIndex = (frameIndex + 1) % frames.size();
+    b++;
 }
 
 void Pandora::initSwapchain() {
